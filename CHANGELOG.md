@@ -20,6 +20,7 @@ All notable changes to this project are documented in this file.
 - Expanded command/API/config test matrices and coverage-focused test suites.
 - Golden output tests for `records query`, `tasks list`, and `meetings list` (table/JSON/plain).
 - Additional integration read-path tests for lists/entries and meetings (opt-in `integration` tag).
+- Homebrew formula at `Formula/attio.rb` for one-line install from release binaries.
 
 ### Changed
 - `comments create` now uses `--content` as the primary flag (`--body` kept as alias).

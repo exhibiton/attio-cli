@@ -20,6 +20,12 @@ or run without building:
 go run ./cmd/attio --help
 ```
 
+Install directly with Homebrew (no clone):
+
+```bash
+brew install --formula https://raw.githubusercontent.com/exhibiton/attio-cli/main/Formula/attio.rb
+```
+
 ## Authentication
 
 Priority order:

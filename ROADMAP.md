@@ -53,13 +53,14 @@ Source:
 
 ## 3) Release Distribution Hardening
 
-Status: `Planned`
+Status: `In Progress`
 
 - Finalize Goreleaser release pipeline on tags:
   - multi-platform binaries
   - checksums
   - release notes wiring
-- Add/maintain Homebrew tap after stable tagged release flow is proven.
+- Homebrew formula exists in-repo (`Formula/attio.rb`) for one-line install from release binaries.
+- Add/maintain dedicated Homebrew tap after stable release flow is proven.
 
 Source:
 - Deferred release tasks in `IMPLEMENTATION_PLAN.md` and review notes.
