@@ -28,6 +28,14 @@ Priority order:
 2. Keyring value for selected profile (`attio auth login`)
 3. Config file profile value (`~/.config/attio-cli/config.json`)
 
+First-time setup (recommended):
+
+```bash
+attio init --api-key <YOUR_KEY>
+```
+
+This verifies the key using `self`, stores it in keyring for the selected profile, and prints next-step commands.
+
 Store a key in keyring:
 
 ```bash
@@ -145,6 +153,7 @@ attio completion powershell
 
 ## Key Commands
 
+- `attio init`
 - `attio self`
 - `attio objects ...`
 - `attio records ...`

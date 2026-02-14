@@ -27,19 +27,18 @@ This file tracks intentionally deferred work after `v0.1.0`.
 
 ## 1) Onboarding / First-Run UX
 
-Status: `Planned`
+Status: `Implemented`
 
-- Add `attio init` onboarding flow for first-time setup.
-- Proposed behavior:
-  - detect missing auth and prompt for API key entry or `ATTIO_API_KEY` usage
-  - optionally save key to keyring for selected profile
-  - validate with `self`/`auth status`
-  - print next-step examples (query/search/create)
-- Add non-interactive mode for CI/agents (for example `attio init --api-key ... --profile ... --no-prompt`).
+- `attio init` is available and supports:
+  - key input via `--api-key`, stdin, `ATTIO_API_KEY`, or interactive prompt
+  - key verification via `/v2/self` (optional `--skip-verify`)
+  - keyring persistence (optional `--no-store`)
+  - non-interactive safety via global `--no-input`
+  - guided next-step output
 
-Why deferred:
-- Existing auth flow (`attio auth login`, `attio auth status`) is functional for v0.1.0.
-- Onboarding wizard is UX work, not a release blocker.
+Possible follow-ups:
+- richer interactive wizard prompts (profile/base URL confirmation)
+- optional smoke-test sequence after init
 
 ## 2) OAuth2 Support
 

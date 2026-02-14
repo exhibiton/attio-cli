@@ -27,6 +27,7 @@ type CLI struct {
 	Search RecordsSearchCmd `cmd:"" name:"search" help:"Alias for 'records search' (Beta)"`
 	Query  RecordsQueryCmd  `cmd:"" name:"query" help:"Alias for 'records query'"`
 
+	Init       InitCmd               `cmd:"" help:"Run first-time setup and API key verification"`
 	Auth       AuthCmd               `cmd:"" help:"Manage authentication"`
 	Self       SelfCmd               `cmd:"" name:"self" aliases:"whoami,me" help:"Show current token info"`
 	Objects    ObjectsCmd            `cmd:"" help:"Manage objects"`
