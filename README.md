@@ -26,6 +26,43 @@ Install directly with Homebrew (no clone):
 brew install --formula https://raw.githubusercontent.com/exhibiton/attio-cli/main/Formula/attio.rb
 ```
 
+## Onboarding Walkthrough
+
+1. Install `attio` (no clone):
+```bash
+brew install --formula https://raw.githubusercontent.com/exhibiton/attio-cli/main/Formula/attio.rb
+```
+
+2. Ensure your shell PATH includes Homebrew/bin locations:
+```bash
+echo $PATH
+which attio
+```
+
+If `which attio` is empty, add PATH exports:
+
+zsh/bash:
+```bash
+echo 'export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+fish:
+```bash
+set -U fish_user_paths /opt/homebrew/bin /usr/local/bin $fish_user_paths
+```
+
+3. Run interactive onboarding:
+```bash
+attio init
+```
+
+4. Verify setup:
+```bash
+attio auth status --json
+attio self
+```
+
 ## Authentication
 
 Priority order:

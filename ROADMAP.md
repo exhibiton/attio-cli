@@ -39,6 +39,8 @@ Status: `Implemented`
 Possible follow-ups:
 - richer interactive wizard prompts (profile/base URL confirmation)
 - optional smoke-test sequence after init
+- installation/path diagnostics (`attio doctor` or `attio init` precheck) for "command not found" and shell PATH issues
+- onboarding docs that include shell-specific PATH export guidance and verification steps
 
 ## 2) OAuth2 Support
 
@@ -60,7 +62,9 @@ Status: `In Progress`
   - checksums
   - release notes wiring
 - Homebrew formula exists in-repo (`Formula/attio.rb`) for one-line install from release binaries.
-- Add/maintain dedicated Homebrew tap after stable release flow is proven.
+- Add/maintain dedicated Homebrew tap repo so install is:
+  - `brew install exhibiton/tap/attio`
+- Automate tap updates from releases (GoReleaser `brews` config + token with write access to `exhibiton/homebrew-tap`).
 
 Source:
 - Deferred release tasks in `IMPLEMENTATION_PLAN.md` and review notes.
