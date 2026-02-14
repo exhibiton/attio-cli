@@ -1,0 +1,28 @@
+{
+  "data": [
+    {
+      "created_at": "2025-01-01T00:00:00Z",
+      "id": {
+        "record_id": "r1"
+      },
+      "values": {
+        "email_addresses": [
+          {
+            "email_address": "ada@example.com"
+          }
+        ],
+        "name": [
+          {
+            "full_name": "Ada Lovelace"
+          }
+        ]
+      },
+      "web_url": "https://app.attio.test/r/1"
+    }
+  ],
+  "pagination": {
+    "has_more": true,
+    "limit": 1,
+    "offset": 0
+  }
+}

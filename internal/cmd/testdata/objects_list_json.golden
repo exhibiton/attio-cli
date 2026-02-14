@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "api_slug": "people",
+      "id": {
+        "object_id": "o1",
+        "workspace_id": "w1"
+      },
+      "plural_noun": "People",
+      "singular_noun": "Person"
+    },
+    {
+      "api_slug": "companies",
+      "id": {
+        "object_id": "o2",
+        "workspace_id": "w1"
+      },
+      "plural_noun": "Companies",
+      "singular_noun": "Company"
+    }
+  ]
+}

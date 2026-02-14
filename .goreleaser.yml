@@ -1,0 +1,35 @@
+version: 2
+
+project_name: attio
+
+builds:
+  - id: attio
+    main: ./cmd/attio
+    binary: attio
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X github.com/failup-ventures/attio-cli/internal/cmd.Version={{.Version}}
+      - -X github.com/failup-ventures/attio-cli/internal/cmd.Commit={{.Commit}}
+      - -X github.com/failup-ventures/attio-cli/internal/cmd.BuildDate={{.Date}}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git

@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "end_at": "2025-01-10T10:30:00Z",
+      "id": {
+        "meeting_id": "m1"
+      },
+      "participant_count": 3,
+      "start_at": "2025-01-10T10:00:00Z",
+      "title": "Pipeline Review"
+    }
+  ],
+  "pagination": {
+    "next_cursor": "next_1"
+  }
+}

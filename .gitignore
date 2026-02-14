@@ -1,0 +1,10 @@
+.DS_Store
+.claude/
+
+bin/
+coverage.out
+
+# Test/debug artifacts
+*.test
+*.out
+*.log

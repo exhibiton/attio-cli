@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "assignees": [
+        {
+          "workspace_member_email_address": "owner@example.com"
+        }
+      ],
+      "content": "Follow up with prospect",
+      "deadline_at": "2025-01-05T12:00:00Z",
+      "id": {
+        "task_id": "t1"
+      },
+      "is_completed": false
+    }
+  ],
+  "pagination": {
+    "has_more": true,
+    "limit": 1,
+    "offset": 0
+  }
+}
