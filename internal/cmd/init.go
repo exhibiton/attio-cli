@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -16,38 +17,72 @@ import (
 	"github.com/failup-ventures/attio-cli/internal/ui"
 )
 
-type InitCmd struct {
-	APIKey     string `name:"api-key" help:"Attio API key. If omitted, uses stdin, ATTIO_API_KEY, or interactive prompt."`
-	NoStore    bool   `name:"no-store" help:"Verify but do not store API key in keyring"`
-	SkipVerify bool   `name:"skip-verify" help:"Skip API key verification against /v2/self"`
-}
+type InitCmd struct{}
+
+var (
+	initIsTerminalFunc   = func(fd int) bool { return term.IsTerminal(fd) }
+	initPromptLineFunc   = promptInitLine
+	initPromptSecretFunc = promptInitSecret
+	initPromptBoolFunc   = promptInitBool
+)
 
 func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
-	profile := config.ResolveProfile(flags.Profile)
-	key, source, err := resolveInitAPIKey(c.APIKey, flags.NoInput, ui.FromContext(ctx))
+	if flags.NoInput {
+		return newUsageError(errors.New("attio init is interactive; remove --no-input to run onboarding"))
+	}
+	if !initIsTerminalFunc(int(os.Stdin.Fd())) {
+		return newUsageError(errors.New("attio init requires an interactive terminal"))
+	}
+
+	u := ui.FromContext(ctx)
+	var promptOut io.Writer = os.Stderr
+	if u != nil {
+		promptOut = u.ErrWriter()
+	}
+
+	defaultProfile := config.ResolveProfile(flags.Profile)
+	profile, err := initPromptLineFunc(promptOut, "Profile to configure", defaultProfile)
 	if err != nil {
 		return err
 	}
-	if key == "" {
-		return newUsageError(errors.New("missing API key: pass --api-key, set ATTIO_API_KEY, or pipe key via stdin"))
+	profile = strings.TrimSpace(profile)
+	if profile == "" {
+		profile = defaultProfile
+	}
+
+	apiKey, err := initPromptSecretFunc(promptOut, "Enter Attio API key")
+	if err != nil {
+		return err
+	}
+	apiKey = strings.TrimSpace(apiKey)
+	if apiKey == "" {
+		return newUsageError(errors.New("API key cannot be empty"))
+	}
+
+	verify, err := initPromptBoolFunc(promptOut, "Verify API key now with Attio", true)
+	if err != nil {
+		return err
+	}
+	store, err := initPromptBoolFunc(promptOut, fmt.Sprintf("Store API key in keyring for profile %q", profile), true)
+	if err != nil {
+		return err
 	}
 
 	baseURL := config.ResolveBaseURL(profile)
 	if ok, err := maybeDryRun(ctx, "init", map[string]any{
-		"profile":     profile,
-		"base_url":    baseURL,
-		"key_source":  source,
-		"api_key":     maskSecret(key),
-		"skip_verify": c.SkipVerify,
-		"no_store":    c.NoStore,
+		"profile":  profile,
+		"base_url": baseURL,
+		"api_key":  maskSecret(apiKey),
+		"verify":   verify,
+		"store":    store,
 	}); ok || err != nil {
 		return err
 	}
 
-	verified := !c.SkipVerify
+	verified := false
 	var self *api.Self
-	if verified {
-		client := api.NewClient(key, baseURL)
+	if verify {
+		client := api.NewClient(apiKey, baseURL)
 		userAgent, timeout := getClientRuntimeOptions()
 		client.SetUserAgent(userAgent)
 		client.SetTimeout(timeout)
@@ -56,11 +91,12 @@ func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
 		if err != nil {
 			return fmt.Errorf("verify API key: %w", err)
 		}
+		verified = true
 	}
 
 	saved := false
-	if !c.NoStore {
-		if err := config.StoreAPIKey(profile, key); err != nil {
+	if store {
+		if err := config.StoreAPIKey(profile, apiKey); err != nil {
 			return err
 		}
 		saved = true
@@ -77,7 +113,7 @@ func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
 			"initialized":      true,
 			"profile":          profile,
 			"base_url":         baseURL,
-			"key_source":       source,
+			"key_source":       "prompt",
 			"saved_to_keyring": saved,
 			"verified":         verified,
 			"next_steps":       nextSteps,
@@ -90,7 +126,7 @@ func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
 		return outfmt.WriteJSON(ctx, os.Stdout, payload)
 	}
 
-	u := ui.FromContext(ctx)
+	printInitSuccess(u, "Onboarding complete for profile %q", profile)
 	if verified {
 		workspaceLabel := strings.TrimSpace(self.WorkspaceName)
 		if workspaceLabel == "" {
@@ -102,17 +138,16 @@ func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
 			printInitSuccess(u, "Verified API key successfully")
 		}
 	} else {
-		printInitf(u, "Skipped API key verification (--skip-verify)")
+		printInitf(u, "Skipped API key verification")
 	}
 
 	if saved {
-		printInitSuccess(u, "Stored API key for profile %q in keyring", profile)
+		printInitSuccess(u, "Stored API key in keyring")
 	} else {
-		printInitf(u, "Skipped keyring save (--no-store)")
+		printInitf(u, "Skipped keyring save")
 	}
 	printInitf(u, "Profile: %s", profile)
 	printInitf(u, "Base URL: %s", baseURL)
-	printInitf(u, "Key source: %s", source)
 	printInitf(u, "Next steps:")
 	for _, step := range nextSteps {
 		printInitf(u, "  %s", step)
@@ -121,47 +156,56 @@ func (c *InitCmd) Run(ctx context.Context, flags *RootFlags) error {
 	return nil
 }
 
-func resolveInitAPIKey(explicit string, noInput bool, u *ui.UI) (string, string, error) {
-	if key := strings.TrimSpace(explicit); key != "" {
-		return key, "flag", nil
+func promptInitLine(out io.Writer, question string, defaultValue string) (string, error) {
+	if defaultValue != "" {
+		_, _ = fmt.Fprintf(out, "%s [%s]: ", question, defaultValue)
+	} else {
+		_, _ = fmt.Fprintf(out, "%s: ", question)
 	}
-	if key := readKeyFromStdin(); key != "" {
-		return key, "stdin", nil
+	reader := bufio.NewReader(os.Stdin)
+	line, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
 	}
-	if key := strings.TrimSpace(os.Getenv("ATTIO_API_KEY")); key != "" {
-		return key, "env", nil
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return defaultValue, nil
 	}
-	if noInput {
-		return "", "", nil
-	}
-
-	key, err := readKeyFromPrompt(u)
-	if err != nil {
-		return "", "", err
-	}
-	if key != "" {
-		return key, "prompt", nil
-	}
-	return "", "", nil
+	return line, nil
 }
 
-func readKeyFromPrompt(u *ui.UI) (string, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return "", nil
-	}
-
-	var out io.Writer = os.Stderr
-	if u != nil {
-		out = u.ErrWriter()
-	}
-
-	_, _ = fmt.Fprint(out, "Enter Attio API key: ")
+func promptInitSecret(out io.Writer, question string) (string, error) {
+	_, _ = fmt.Fprintf(out, "%s: ", question)
 	b, err := term.ReadPassword(int(os.Stdin.Fd()))
 	_, _ = fmt.Fprintln(out)
 	if err != nil {
 		return "", err
 	}
 	return strings.TrimSpace(string(b)), nil
+}
+
+func promptInitBool(out io.Writer, question string, defaultValue bool) (bool, error) {
+	label := "y/N"
+	if defaultValue {
+		label = "Y/n"
+	}
+
+	for {
+		answer, err := promptInitLine(out, fmt.Sprintf("%s (%s)", question, label), "")
+		if err != nil {
+			return false, err
+		}
+		switch strings.ToLower(strings.TrimSpace(answer)) {
+		case "":
+			return defaultValue, nil
+		case "y", "yes":
+			return true, nil
+		case "n", "no":
+			return false, nil
+		default:
+			_, _ = fmt.Fprintln(out, "Please answer y or n.")
+		}
+	}
 }
 
 func printInitSuccess(u *ui.UI, format string, args ...any) {

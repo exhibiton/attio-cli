@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,8 +14,62 @@ import (
 	"github.com/failup-ventures/attio-cli/internal/config"
 )
 
-func TestExecuteInitJSONVerifiesAndSavesKey(t *testing.T) {
+func stubInitPrompts(
+	t *testing.T,
+	line func(io.Writer, string, string) (string, error),
+	secret func(io.Writer, string) (string, error),
+	confirm func(io.Writer, string, bool) (bool, error),
+) {
+	t.Helper()
+
+	origTTY := initIsTerminalFunc
+	origLine := initPromptLineFunc
+	origSecret := initPromptSecretFunc
+	origConfirm := initPromptBoolFunc
+
+	initIsTerminalFunc = func(fd int) bool { return true }
+	if line != nil {
+		initPromptLineFunc = line
+	}
+	if secret != nil {
+		initPromptSecretFunc = secret
+	}
+	if confirm != nil {
+		initPromptBoolFunc = confirm
+	}
+
+	t.Cleanup(func() {
+		initIsTerminalFunc = origTTY
+		initPromptLineFunc = origLine
+		initPromptSecretFunc = origSecret
+		initPromptBoolFunc = origConfirm
+	})
+}
+
+func TestExecuteInitInteractiveJSONVerifiesAndSavesKey(t *testing.T) {
 	setupCLIEnv(t)
+
+	stubInitPrompts(
+		t,
+		func(_ io.Writer, question, defaultValue string) (string, error) {
+			if strings.Contains(question, "Profile to configure") {
+				return "onboarding", nil
+			}
+			return defaultValue, nil
+		},
+		func(_ io.Writer, _ string) (string, error) {
+			return "init-key", nil
+		},
+		func(_ io.Writer, question string, defaultValue bool) (bool, error) {
+			if strings.Contains(question, "Verify API key") {
+				return true, nil
+			}
+			if strings.Contains(question, "Store API key") {
+				return true, nil
+			}
+			return defaultValue, nil
+		},
+	)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.URL.Path != "/v2/self" {
@@ -35,7 +90,7 @@ func TestExecuteInitJSONVerifiesAndSavesKey(t *testing.T) {
 
 	t.Setenv("ATTIO_BASE_URL", srv.URL)
 
-	stdout, stderr, err := captureExecute(t, []string{"--json", "init", "--profile", "onboarding", "--api-key", "init-key"})
+	stdout, stderr, err := captureExecute(t, []string{"--json", "init"})
 	if err != nil {
 		t.Fatalf("init failed: %v stderr=%s", err, stderr)
 	}
@@ -53,8 +108,8 @@ func TestExecuteInitJSONVerifiesAndSavesKey(t *testing.T) {
 	if payload["profile"] != "onboarding" {
 		t.Fatalf("unexpected profile: %#v", payload["profile"])
 	}
-	if payload["key_source"] != "flag" {
-		t.Fatalf("expected key_source flag, got %#v", payload["key_source"])
+	if payload["key_source"] != "prompt" {
+		t.Fatalf("expected key_source prompt, got %#v", payload["key_source"])
 	}
 	if payload["saved_to_keyring"] != true {
 		t.Fatalf("expected saved_to_keyring=true, got %#v", payload["saved_to_keyring"])
@@ -75,12 +130,34 @@ func TestExecuteInitJSONVerifiesAndSavesKey(t *testing.T) {
 	}
 }
 
-func TestExecuteInitJSONNoStoreAndSkipVerify(t *testing.T) {
+func TestExecuteInitInteractiveJSONSkipVerifyAndNoStore(t *testing.T) {
 	setupCLIEnv(t)
 
-	stdout, stderr, err := captureExecute(t, []string{"--json", "--no-input", "init", "--api-key", "init-key", "--no-store", "--skip-verify"})
+	stubInitPrompts(
+		t,
+		func(_ io.Writer, _ string, defaultValue string) (string, error) {
+			return defaultValue, nil
+		},
+		func(_ io.Writer, _ string) (string, error) {
+			return "prompt-key", nil
+		},
+		func(_ io.Writer, question string, _ bool) (bool, error) {
+			if strings.Contains(question, "Verify API key") {
+				return false, nil
+			}
+			if strings.Contains(question, "Store API key") {
+				return false, nil
+			}
+			return false, nil
+		},
+	)
+
+	stdout, stderr, err := captureExecute(t, []string{"--json", "init"})
 	if err != nil {
-		t.Fatalf("init --no-store --skip-verify failed: %v stderr=%s", err, stderr)
+		t.Fatalf("init failed: %v stderr=%s", err, stderr)
+	}
+	if strings.TrimSpace(stderr) != "" {
+		t.Fatalf("expected empty stderr, got %q", stderr)
 	}
 
 	var payload map[string]any
@@ -100,50 +177,12 @@ func TestExecuteInitJSONNoStoreAndSkipVerify(t *testing.T) {
 	}
 }
 
-func TestExecuteInitUsesEnvKeySource(t *testing.T) {
-	setupCLIEnv(t)
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet || r.URL.Path != "/v2/self" {
-			http.NotFound(w, r)
-			return
-		}
-		if got := r.Header.Get("Authorization"); got != "Bearer env-init-key" {
-			t.Fatalf("expected auth header from env key, got %q", got)
-		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"active": true, "workspace_name": "Env Workspace"})
-	}))
-	defer srv.Close()
-
-	t.Setenv("ATTIO_API_KEY", "env-init-key")
-	t.Setenv("ATTIO_BASE_URL", srv.URL)
-
-	stdout, stderr, err := captureExecute(t, []string{"--json", "--no-input", "init", "--no-store"})
-	if err != nil {
-		t.Fatalf("init with env key failed: %v stderr=%s", err, stderr)
-	}
-	if strings.TrimSpace(stderr) != "" {
-		t.Fatalf("expected empty stderr, got %q", stderr)
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-		t.Fatalf("unmarshal init output: %v output=%s", err, stdout)
-	}
-	if payload["key_source"] != "env" {
-		t.Fatalf("expected env key source, got %#v", payload["key_source"])
-	}
-	if payload["verified"] != true {
-		t.Fatalf("expected verified=true, got %#v", payload["verified"])
-	}
-}
-
-func TestExecuteInitNoInputMissingKey(t *testing.T) {
+func TestExecuteInitNoInputRejected(t *testing.T) {
 	setupCLIEnv(t)
 
 	_, stderr, err := captureExecute(t, []string{"--json", "--no-input", "init"})
 	if err == nil {
-		t.Fatalf("expected init missing key error")
+		t.Fatalf("expected init no-input error")
 	}
 	if ExitCode(err) != ExitCodeUsage {
 		t.Fatalf("expected usage exit code %d, got %d", ExitCodeUsage, ExitCode(err))
@@ -156,5 +195,52 @@ func TestExecuteInitNoInputMissingKey(t *testing.T) {
 	errObj, _ := payload["error"].(map[string]any)
 	if errObj["kind"] != "usage" {
 		t.Fatalf("expected usage error kind, got %#v", errObj)
+	}
+}
+
+func TestExecuteInitRequiresInteractiveTTY(t *testing.T) {
+	setupCLIEnv(t)
+
+	origTTY := initIsTerminalFunc
+	initIsTerminalFunc = func(fd int) bool { return false }
+	t.Cleanup(func() { initIsTerminalFunc = origTTY })
+
+	_, stderr, err := captureExecute(t, []string{"--json", "init"})
+	if err == nil {
+		t.Fatalf("expected init tty error")
+	}
+	if ExitCode(err) != ExitCodeUsage {
+		t.Fatalf("expected usage exit code %d, got %d", ExitCodeUsage, ExitCode(err))
+	}
+	if !strings.Contains(stderr, "interactive terminal") {
+		t.Fatalf("expected interactive terminal guidance, got %q", stderr)
+	}
+}
+
+func TestExecuteInitInteractiveEmptyKeyRejected(t *testing.T) {
+	setupCLIEnv(t)
+
+	stubInitPrompts(
+		t,
+		func(_ io.Writer, _ string, defaultValue string) (string, error) {
+			return defaultValue, nil
+		},
+		func(_ io.Writer, _ string) (string, error) {
+			return "", nil
+		},
+		func(_ io.Writer, _ string, defaultValue bool) (bool, error) {
+			return defaultValue, nil
+		},
+	)
+
+	_, stderr, err := captureExecute(t, []string{"--json", "init"})
+	if err == nil {
+		t.Fatalf("expected empty key error")
+	}
+	if ExitCode(err) != ExitCodeUsage {
+		t.Fatalf("expected usage exit code %d, got %d", ExitCodeUsage, ExitCode(err))
+	}
+	if !strings.Contains(stderr, "API key cannot be empty") {
+		t.Fatalf("expected empty key message, got %q", stderr)
 	}
 }

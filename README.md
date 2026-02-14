@@ -31,10 +31,10 @@ Priority order:
 First-time setup (recommended):
 
 ```bash
-attio init --api-key <YOUR_KEY>
+attio init
 ```
 
-This verifies the key using `self`, stores it in keyring for the selected profile, and prints next-step commands.
+This starts an onboarding flow that asks for profile, API key, verification preference, and keyring save preference.
 
 Store a key in keyring:
 

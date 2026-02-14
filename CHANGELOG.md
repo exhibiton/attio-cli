@@ -6,9 +6,9 @@ All notable changes to this project are documented in this file.
 
 ### Added
 - `attio init` onboarding command for first-time API key setup:
-  - key input via `--api-key`, stdin, `ATTIO_API_KEY`, or interactive prompt
-  - optional verification via `self`
-  - optional keyring persistence (`--no-store`)
+  - interactive prompts for profile, API key, verification preference, and keyring save preference
+  - verification via `self` during onboarding
+  - keyring persistence choice during onboarding prompts
   - next-step guidance output for users and agents
 - Global CLI flags: `--id-only`, `--enable-commands`, and `--timeout`.
 - Agent-oriented behavior:

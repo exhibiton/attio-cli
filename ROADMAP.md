@@ -30,10 +30,10 @@ This file tracks intentionally deferred work after `v0.1.0`.
 Status: `Implemented`
 
 - `attio init` is available and supports:
-  - key input via `--api-key`, stdin, `ATTIO_API_KEY`, or interactive prompt
-  - key verification via `/v2/self` (optional `--skip-verify`)
-  - keyring persistence (optional `--no-store`)
-  - non-interactive safety via global `--no-input`
+  - interactive prompts for profile, API key, verification, and keyring save preference
+  - key verification via `/v2/self`
+  - keyring persistence choice in onboarding flow
+  - explicit guardrails when `--no-input` is set or no TTY is present
   - guided next-step output
 
 Possible follow-ups:
